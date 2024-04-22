@@ -1,45 +1,90 @@
-import contactsArray from '../../contacts.json';
-import css from './App.module.css';
-import { useState, useEffect } from 'react';
-import ContactForm from '../ContactForm/ContactForm';
-import ContactList from '../ContactList/ContactList';
-import SearchBox from '../SearchBox/SearchBox';
+import { getImages } from '../../unsplash';
+import { useEffect, useState } from 'react';
+import Modal from 'react-modal';
+
+import SearchBar from '../SearchBar/SearchBar';
+import Loader from '../Loader/Loader';
+import ImageGallery from '../ImageGallery/ImageGallery';
+import LoadMoreBtn from '../LoadMoreBtn/LoadMoreBtn';
+import ErrorMessage from '../ErrorMessage/ErrorMessage';
+import ImageModal from '../ImageModal/ImageModal';
 
 function App() {
-  const [contacts, setContacts] = useState(() => {
-    const savedContacts = window.localStorage.getItem('saved-contacts');
-    return savedContacts ? JSON.parse(savedContacts) : contactsArray;
-  });
+  const [images, setImages] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [modalIsOpen, setModalIsOpen] = useState(false);
 
   useEffect(() => {
-    window.localStorage.setItem('saved-contacts', JSON.stringify(contacts));
-  }, [contacts]);
+    Modal.setAppElement('#root');
+  }, []);
 
-  const addContact = newContact => {
-    setContacts(prevContacts => {
-      return [...prevContacts, newContact];
-    });
+  const handleSearch = async searchQuery => {
+    try {
+      setLoading(true);
+      setIsSearching(true);
+      setImages([]);
+      setPage(1);
+      setSearch(searchQuery);
+      const data = await getImages(searchQuery, 1);
+      setTotalPages(data.total_pages);
+      setImages(data.results);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+      setIsSearching(false);
+    }
   };
 
-  const filterContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const deleteContact = contactId => {
-    setContacts(prevContacts => {
-      return prevContacts.filter(contact => contact.id !== contactId);
-    });
+  const handleLoadMore = async () => {
+    try {
+      setLoadingMore(true);
+      const nextPage = page + 1;
+      const data = await getImages(search, nextPage);
+      setImages(prevImages => {
+        return [...prevImages, ...data.results];
+      });
+      setPage(nextPage);
+    } catch (error) {
+      setError(true);
+    } finally {
+      setLoadingMore(false);
+    }
   };
+
+  const isVisible = () => {
+    return totalPages !== 0 && totalPages !== page && !loadingMore;
+  };
+
+  const openModal = image => {
+    setSelectedImage(image);
+    setModalIsOpen(true);
+  };
+
+  const closeModal = () => setModalIsOpen(false);
 
   return (
     <>
-      <div className={css.container}>
-        <h1 className={css.title}>Phonebook</h1>
-        <ContactForm onAdd={addContact} />
-        <SearchBox value={search} onFilter={setSearch} />
-        <ContactList contactList={filterContacts} onDelete={deleteContact} />
-      </div>
+      <SearchBar onSubmit={handleSearch} />
+      {loading && <Loader />}
+      {error && <ErrorMessage />}
+      <ImageGallery imageList={images} openModal={openModal} />
+      {!loadingMore && !isSearching && (
+        <LoadMoreBtn onClick={handleLoadMore} isVisible={isVisible} />
+      )}
+      {loadingMore && !error && <Loader />}
+      <ImageModal
+        isOpen={modalIsOpen}
+        image={selectedImage}
+        onCloseModal={closeModal}
+      />
     </>
   );
 }

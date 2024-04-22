@@ -13,6 +13,13 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+#root {
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
 h1,
 h2,
 h3,
